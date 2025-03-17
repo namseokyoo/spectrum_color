@@ -5,10 +5,24 @@ from callbacks import home_callbacks, analysis_callbacks, doe_callbacks, optical
 from dash import dash_table
 from utils import color_math, parsers
 import math
+import dash_html_components as html
+import webbrowser
+import threading
+import os
+import sys
+from flask import request
 
 # 앱 생성
 app = dash.Dash(__name__, suppress_callback_exceptions=True)
 server = app.server
+
+# 브라우저 자동 실행을 위한 함수
+def open_browser():
+    webbrowser.open_new("http://127.0.0.1:8050")
+
+    # 서버 종료 함수
+def shutdown_server():
+    os._exit(0)
 
 # 레이아웃 정의
 app.layout = html.Div([
@@ -226,7 +240,16 @@ def update_results_table(n_clicks, data):
     # 결과 테이블 생성
     # ... 나머지 코드 ...
 
+    @app.server.route('/shutdown', methods=['POST'])
+    def shutdown():
+        shutdown_server()
+        return "Server shutting down..."
+
 
 # 앱 실행
 if __name__ == '__main__':
-    app.run_server(debug=True)
+    threading.Timer(1.5, open_browser).start()
+    try:
+        app.run_server(debug=False, host="127.0.0.1", port=8050)
+    except KeyboardInterrupt:
+        shutdown_server()

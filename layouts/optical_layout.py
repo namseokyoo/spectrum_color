@@ -172,7 +172,7 @@ def create_optical_tab():
                                 ], style={'display': 'flex', 'flexWrap': 'wrap', 'marginTop': '20px'})
                             ])
                         ])
-                    ], style={'width': '32%', 'display': 'inline-block', 'verticalAlign': 'top',
+                    ], style={'width': '31.5%', 'display': 'inline-block', 'verticalAlign': 'top',
                               'padding': '10px', 'backgroundColor': '#fff', 'borderRadius': '8px',
                               'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'}),
 
@@ -336,7 +336,7 @@ def create_optical_tab():
                                 ], style={'display': 'flex', 'flexWrap': 'wrap', 'marginTop': '20px'})
                             ])
                         ])
-                    ], style={'width': '32%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginLeft': '1%',
+                    ], style={'width': '31.5%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginLeft': '0.5%',
                               'padding': '10px', 'backgroundColor': '#fff', 'borderRadius': '8px',
                               'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'}),
 
@@ -500,7 +500,7 @@ def create_optical_tab():
                                 ], style={'display': 'flex', 'flexWrap': 'wrap', 'marginTop': '20px'})
                             ])
                         ])
-                    ], style={'width': '32%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginLeft': '0.5%',
+                    ], style={'width': '31.5%', 'display': 'inline-block', 'verticalAlign': 'top', 'marginLeft': '0.5%',
                               'padding': '10px', 'backgroundColor': '#fff', 'borderRadius': '8px',
                               'boxShadow': '0 2px 4px rgba(0,0,0,0.1)'})
                 ], style={'margin': '0px 0'})
