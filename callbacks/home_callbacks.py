@@ -103,40 +103,84 @@ def register_callbacks(app):
          Output('spectrum-data-store', 'data'),
          Output('input-r-data', 'value'),
          Output('input-g-data', 'value'),
-         Output('input-b-data', 'value')],
+         Output('input-b-data', 'value'),
+         Output('input-r-filter-data', 'value'),
+         Output('input-g-filter-data', 'value'),
+         Output('input-b-filter-data', 'value')],
         [Input('input-r-data', 'value'),
          Input('input-g-data', 'value'),
          Input('input-b-data', 'value'),
-         Input('normalize-spectrum', 'value')],
-        [State('spectrum-data-store', 'data')]
+         Input('input-r-filter-data', 'value'),
+         Input('input-g-filter-data', 'value'),
+         Input('input-b-filter-data', 'value'),
+         Input('normalize-spectrum', 'value'),
+         Input('color-filter-mode', 'value')],
+        [State('spectrum-data-store', 'data')],
+        prevent_initial_call=False
     )
-    def update_spectrum_data(r_data, g_data, b_data, normalize_options, stored_data):
+    def update_spectrum_data(r_data, g_data, b_data, r_filter_data, g_filter_data, b_filter_data, normalize_options, filter_mode, stored_data):
         ctx = callback_context
         if not ctx.triggered:
             # 초기 로드 시 저장된 데이터가 있으면 반환, 없으면 빈 그래프
             if stored_data:
-                stored_data = json.loads(stored_data) if isinstance(
-                    stored_data, str) else stored_data
-                fig = create_spectrum_figure(stored_data)
-                return fig, stored_data, stored_data.get('r_text', ""), stored_data.get('g_text', ""), stored_data.get('b_text', "")
+                try:
+                    # 저장된 데이터가 문자열이면 JSON으로 변환
+                    parsed_data = json.loads(stored_data) if isinstance(
+                        stored_data, str) else stored_data
+                    fig = create_spectrum_figure(parsed_data)
+                    return (
+                        fig,
+                        stored_data,  # 이미 JSON 문자열이면 그대로 반환
+                        parsed_data.get('r_text', ""),
+                        parsed_data.get('g_text', ""),
+                        parsed_data.get('b_text', ""),
+                        parsed_data.get('r_filter_text', ""),
+                        parsed_data.get('g_filter_text', ""),
+                        parsed_data.get('b_filter_text', "")
+                    )
+                except Exception as e:
+                    print(f"저장된 데이터 처리 오류: {str(e)}")
+                    # 오류 발생 시 빈 그래프 반환
+                    empty_fig = create_empty_figure("스펙트럼 분석", "데이터를 입력하세요.")
+                    empty_data = {'r': None, 'g': None, 'b': None,
+                                  'r_text': "", 'g_text': "", 'b_text': "",
+                                  'r_filter': None, 'g_filter': None, 'b_filter': None,
+                                  'r_filter_text': "", 'g_filter_text': "", 'b_filter_text': "",
+                                  'filter_mode': 'enabled' in filter_mode if filter_mode else True}
+                    return empty_fig, json.dumps(empty_data), "", "", "", "", "", ""
             else:
                 empty_fig = create_empty_figure("스펙트럼 분석", "데이터를 입력하세요.")
                 empty_data = {'r': None, 'g': None, 'b': None,
-                              'r_text': "", 'g_text': "", 'b_text': ""}
-                return empty_fig, json.dumps(empty_data), "", "", ""
-
-        # 현재 어떤 입력이 변경되었는지 확인
-        input_id = ctx.triggered[0]['prop_id'].split('.')[0]
+                              'r_text': "", 'g_text': "", 'b_text': "",
+                              'r_filter': None, 'g_filter': None, 'b_filter': None,
+                              'r_filter_text': "", 'g_filter_text': "", 'b_filter_text': "",
+                              'filter_mode': 'enabled' in filter_mode if filter_mode else True}
+                return empty_fig, json.dumps(empty_data), "", "", "", "", "", ""
 
         # 저장된 데이터 초기화 또는 불러오기
-        if stored_data is None:
-            stored_data = {'r': None, 'g': None, 'b': None,
-                           'r_text': "", 'g_text': "", 'b_text': ""}
-        else:
-            stored_data = json.loads(stored_data) if isinstance(
-                stored_data, str) else stored_data
+        data_dict = {'r': None, 'g': None, 'b': None,
+                     'r_text': "", 'g_text': "", 'b_text': "",
+                     'r_filter': None, 'g_filter': None, 'b_filter': None,
+                     'r_filter_text': "", 'g_filter_text': "", 'b_filter_text': "",
+                     'filter_mode': 'enabled' in filter_mode if filter_mode else False}
 
-        # R, G, B 각각의 데이터 처리
+        # 저장된 데이터가 있으면 파싱
+        if stored_data:
+            try:
+                parsed_data = json.loads(stored_data) if isinstance(
+                    stored_data, str) else stored_data
+                # 기존 데이터 복사
+                for key in parsed_data:
+                    if key in data_dict:
+                        data_dict[key] = parsed_data[key]
+            except Exception as e:
+                print(f"저장된 데이터 파싱 오류: {str(e)}")
+                # 오류 발생 시 빈 데이터 사용
+
+        # 필터 모드 상태 업데이트
+        data_dict['filter_mode'] = 'enabled' in filter_mode if filter_mode else False
+
+        # RGB 스펙트럼 데이터 처리
         if r_data:
             df_r = parse_text_data_flexible(r_data)
             if df_r is not None:
@@ -144,11 +188,8 @@ def register_callbacks(app):
                 if normalize_options and 'normalize' in normalize_options:
                     df_r['intensity'] = df_r['intensity'] / \
                         df_r['intensity'].max()
-                stored_data['r'] = df_r.to_dict('records')
-                stored_data['r_text'] = r_data
-        else:
-            stored_data['r'] = None
-            stored_data['r_text'] = ""
+                data_dict['r'] = df_r.to_dict('list')
+                data_dict['r_text'] = r_data
 
         if g_data:
             df_g = parse_text_data_flexible(g_data)
@@ -157,11 +198,8 @@ def register_callbacks(app):
                 if normalize_options and 'normalize' in normalize_options:
                     df_g['intensity'] = df_g['intensity'] / \
                         df_g['intensity'].max()
-                stored_data['g'] = df_g.to_dict('records')
-                stored_data['g_text'] = g_data
-        else:
-            stored_data['g'] = None
-            stored_data['g_text'] = ""
+                data_dict['g'] = df_g.to_dict('list')
+                data_dict['g_text'] = g_data
 
         if b_data:
             df_b = parse_text_data_flexible(b_data)
@@ -170,42 +208,108 @@ def register_callbacks(app):
                 if normalize_options and 'normalize' in normalize_options:
                     df_b['intensity'] = df_b['intensity'] / \
                         df_b['intensity'].max()
-                stored_data['b'] = df_b.to_dict('records')
-                stored_data['b_text'] = b_data
-        else:
-            stored_data['b'] = None
-            stored_data['b_text'] = ""
+                data_dict['b'] = df_b.to_dict('list')
+                data_dict['b_text'] = b_data
+
+        # 필터 스펙트럼 데이터 처리
+        if r_filter_data:
+            df_r_filter = parse_text_data_flexible(r_filter_data)
+            if df_r_filter is not None:
+                # 정규화 옵션 적용
+                if normalize_options and 'normalize' in normalize_options:
+                    df_r_filter['intensity'] = df_r_filter['intensity'] / \
+                        df_r_filter['intensity'].max()
+                data_dict['r_filter'] = df_r_filter.to_dict('list')
+                data_dict['r_filter_text'] = r_filter_data
+
+        if g_filter_data:
+            df_g_filter = parse_text_data_flexible(g_filter_data)
+            if df_g_filter is not None:
+                # 정규화 옵션 적용
+                if normalize_options and 'normalize' in normalize_options:
+                    df_g_filter['intensity'] = df_g_filter['intensity'] / \
+                        df_g_filter['intensity'].max()
+                data_dict['g_filter'] = df_g_filter.to_dict('list')
+                data_dict['g_filter_text'] = g_filter_data
+
+        if b_filter_data:
+            df_b_filter = parse_text_data_flexible(b_filter_data)
+            if df_b_filter is not None:
+                # 정규화 옵션 적용
+                if normalize_options and 'normalize' in normalize_options:
+                    df_b_filter['intensity'] = df_b_filter['intensity'] / \
+                        df_b_filter['intensity'].max()
+                data_dict['b_filter'] = df_b_filter.to_dict('list')
+                data_dict['b_filter_text'] = b_filter_data
 
         # 그래프 생성
-        fig = create_spectrum_figure(stored_data)
+        fig = create_spectrum_figure(data_dict)
 
-        return fig, json.dumps(stored_data), r_data, g_data, b_data
+        # 데이터를 JSON 문자열로 변환하여 저장
+        json_data = json.dumps(data_dict)
+
+        return fig, json_data, r_data, g_data, b_data, r_filter_data, g_filter_data, b_filter_data
 
     # R 좌표 표시 콜백
     @app.callback(
         Output('r-coordinates-display', 'children'),
-        [Input('input-r-data', 'value')]
+        [Input('input-r-data', 'value'),
+         Input('input-r-filter-data', 'value'),
+         Input('color-filter-mode', 'value')]
     )
-    def update_r_coordinates(data):
-        if not data:
+    def update_r_coordinates(r_data, r_filter_data, filter_mode):
+        if not r_data:
             return "R 스펙트럼 데이터를 입력하세요."
 
         try:
             # 데이터 파싱
-            df = parse_text_data_flexible(data)
+            df = parse_text_data_flexible(r_data)
             if df is None:
                 return "데이터 형식이 올바르지 않습니다."
 
+            wavelengths = df['wavelength'].values
+            intensities = df['intensity'].values
+
+            # 필터 모드가 활성화되고 필터 데이터가 있는 경우
+            filter_enabled = 'enabled' in filter_mode if filter_mode else False
+            if filter_enabled and r_filter_data:
+                df_filter = parse_text_data_flexible(r_filter_data)
+                if df_filter is not None:
+                    filter_wavelengths = df_filter['wavelength'].values
+                    filter_intensities = df_filter['intensity'].values
+
+                    # 두 데이터 세트의 파장 범위 일치시키기
+                    min_wl = max(np.min(wavelengths),
+                                 np.min(filter_wavelengths))
+                    max_wl = min(np.max(wavelengths),
+                                 np.max(filter_wavelengths))
+
+                    # 원본 스펙트럼에서 공통 범위 필터링
+                    mask = (wavelengths >= min_wl) & (wavelengths <= max_wl)
+                    common_wavelengths = wavelengths[mask]
+                    common_intensities = intensities[mask]
+
+                    # 필터 데이터 보간
+                    from scipy.interpolate import interp1d
+                    filter_interp = interp1d(filter_wavelengths, filter_intensities,
+                                             bounds_error=False, fill_value=0, kind='linear')
+                    filter_values = filter_interp(common_wavelengths)
+
+                    # 스펙트럼과 필터 곱하기
+                    combined_intensities = common_intensities * filter_values
+
+                    # 결합된 데이터로 계산
+                    wavelengths = common_wavelengths
+                    intensities = combined_intensities
+
             # XYZ 값 계산
-            xyz = calculate_xyz_from_spectrum(
-                df['wavelength'].values, df['intensity'].values)
+            xyz = calculate_xyz_from_spectrum(wavelengths, intensities)
 
             # xy, uv 좌표 계산
             coords = calculate_all_color_coordinates(xyz)
 
             # 피크 파라미터 계산
-            peak_params = calculate_peak_parameters(
-                df['wavelength'].values, df['intensity'].values)
+            peak_params = calculate_peak_parameters(wavelengths, intensities)
 
             # 결과 표시 - 색좌표와 피크 파라미터 함께 표시
             return html.Div([
@@ -252,28 +356,63 @@ def register_callbacks(app):
     # G 좌표 표시 콜백
     @app.callback(
         Output('g-coordinates-display', 'children'),
-        [Input('input-g-data', 'value')]
+        [Input('input-g-data', 'value'),
+         Input('input-g-filter-data', 'value'),
+         Input('color-filter-mode', 'value')]
     )
-    def update_g_coordinates(data):
-        if not data:
+    def update_g_coordinates(g_data, g_filter_data, filter_mode):
+        if not g_data:
             return "G 스펙트럼 데이터를 입력하세요."
 
         try:
             # 데이터 파싱
-            df = parse_text_data_flexible(data)
+            df = parse_text_data_flexible(g_data)
             if df is None:
                 return "데이터 형식이 올바르지 않습니다."
 
+            wavelengths = df['wavelength'].values
+            intensities = df['intensity'].values
+
+            # 필터 모드가 활성화되고 필터 데이터가 있는 경우
+            filter_enabled = 'enabled' in filter_mode if filter_mode else False
+            if filter_enabled and g_filter_data:
+                df_filter = parse_text_data_flexible(g_filter_data)
+                if df_filter is not None:
+                    filter_wavelengths = df_filter['wavelength'].values
+                    filter_intensities = df_filter['intensity'].values
+
+                    # 두 데이터 세트의 파장 범위 일치시키기
+                    min_wl = max(np.min(wavelengths),
+                                 np.min(filter_wavelengths))
+                    max_wl = min(np.max(wavelengths),
+                                 np.max(filter_wavelengths))
+
+                    # 원본 스펙트럼에서 공통 범위 필터링
+                    mask = (wavelengths >= min_wl) & (wavelengths <= max_wl)
+                    common_wavelengths = wavelengths[mask]
+                    common_intensities = intensities[mask]
+
+                    # 필터 데이터 보간
+                    from scipy.interpolate import interp1d
+                    filter_interp = interp1d(filter_wavelengths, filter_intensities,
+                                             bounds_error=False, fill_value=0, kind='linear')
+                    filter_values = filter_interp(common_wavelengths)
+
+                    # 스펙트럼과 필터 곱하기
+                    combined_intensities = common_intensities * filter_values
+
+                    # 결합된 데이터로 계산
+                    wavelengths = common_wavelengths
+                    intensities = combined_intensities
+
             # XYZ 값 계산
-            xyz = calculate_xyz_from_spectrum(
-                df['wavelength'].values, df['intensity'].values)
+            xyz = calculate_xyz_from_spectrum(wavelengths, intensities)
 
             # xy, uv 좌표 계산
             coords = calculate_all_color_coordinates(xyz)
 
             # 피크 파라미터 계산
-            peak_params = calculate_peak_parameters(
-                df['wavelength'].values, df['intensity'].values)
+            peak_params = calculate_peak_parameters(wavelengths, intensities)
 
             # 결과 표시 - 색좌표와 피크 파라미터 함께 표시
             return html.Div([
@@ -320,28 +459,63 @@ def register_callbacks(app):
     # B 좌표 표시 콜백
     @app.callback(
         Output('b-coordinates-display', 'children'),
-        [Input('input-b-data', 'value')]
+        [Input('input-b-data', 'value'),
+         Input('input-b-filter-data', 'value'),
+         Input('color-filter-mode', 'value')]
     )
-    def update_b_coordinates(data):
-        if not data:
+    def update_b_coordinates(b_data, b_filter_data, filter_mode):
+        if not b_data:
             return "B 스펙트럼 데이터를 입력하세요."
 
         try:
             # 데이터 파싱
-            df = parse_text_data_flexible(data)
+            df = parse_text_data_flexible(b_data)
             if df is None:
                 return "데이터 형식이 올바르지 않습니다."
 
+            wavelengths = df['wavelength'].values
+            intensities = df['intensity'].values
+
+            # 필터 모드가 활성화되고 필터 데이터가 있는 경우
+            filter_enabled = 'enabled' in filter_mode if filter_mode else False
+            if filter_enabled and b_filter_data:
+                df_filter = parse_text_data_flexible(b_filter_data)
+                if df_filter is not None:
+                    filter_wavelengths = df_filter['wavelength'].values
+                    filter_intensities = df_filter['intensity'].values
+
+                    # 두 데이터 세트의 파장 범위 일치시키기
+                    min_wl = max(np.min(wavelengths),
+                                 np.min(filter_wavelengths))
+                    max_wl = min(np.max(wavelengths),
+                                 np.max(filter_wavelengths))
+
+                    # 원본 스펙트럼에서 공통 범위 필터링
+                    mask = (wavelengths >= min_wl) & (wavelengths <= max_wl)
+                    common_wavelengths = wavelengths[mask]
+                    common_intensities = intensities[mask]
+
+                    # 필터 데이터 보간
+                    from scipy.interpolate import interp1d
+                    filter_interp = interp1d(filter_wavelengths, filter_intensities,
+                                             bounds_error=False, fill_value=0, kind='linear')
+                    filter_values = filter_interp(common_wavelengths)
+
+                    # 스펙트럼과 필터 곱하기
+                    combined_intensities = common_intensities * filter_values
+
+                    # 결합된 데이터로 계산
+                    wavelengths = common_wavelengths
+                    intensities = combined_intensities
+
             # XYZ 값 계산
-            xyz = calculate_xyz_from_spectrum(
-                df['wavelength'].values, df['intensity'].values)
+            xyz = calculate_xyz_from_spectrum(wavelengths, intensities)
 
             # xy, uv 좌표 계산
             coords = calculate_all_color_coordinates(xyz)
 
             # 피크 파라미터 계산
-            peak_params = calculate_peak_parameters(
-                df['wavelength'].values, df['intensity'].values)
+            peak_params = calculate_peak_parameters(wavelengths, intensities)
 
             # 결과 표시 - 색좌표와 피크 파라미터 함께 표시
             return html.Div([
@@ -391,10 +565,11 @@ def register_callbacks(app):
          Output('cie-diagram', 'figure')],
         [Input('spectrum-data-store', 'data'),
          Input('color-space-checklist', 'value'),
-         Input('single-cie-diagram-type', 'value')],
+         Input('single-cie-diagram-type', 'value'),
+         Input('color-filter-mode', 'value')],
         prevent_initial_call=False
     )
-    def update_color_analysis(stored_data, color_spaces, diagram_type):
+    def update_color_analysis(stored_data, color_spaces, diagram_type, filter_mode):
         if not stored_data:
             # 데이터가 없을 때도 기본 색공간이 포함된 다이어그램 표시
             return "RGB 스펙트럼 데이터를 모두 입력하세요.", create_empty_cie_diagram(diagram_type)
@@ -408,18 +583,67 @@ def register_callbacks(app):
             return "RGB 스펙트럼 데이터를 모두 입력하세요.", create_empty_cie_diagram(diagram_type)
 
         try:
-            # 데이터프레임으로 변환
-            r_df = pd.DataFrame(stored_data['r'])
-            g_df = pd.DataFrame(stored_data['g'])
-            b_df = pd.DataFrame(stored_data['b'])
+            # 필터 모드 설정 확인
+            filter_enabled = 'enabled' in filter_mode if filter_mode else False
+
+            # 각 색상별 처리 함수
+            def process_color_data(color_data, filter_data=None):
+                if 'wavelength' in color_data:
+                    wavelengths = np.array(color_data['wavelength'])
+                    intensities = np.array(color_data['intensity'])
+                else:
+                    wavelengths = np.array(color_data['wavelengths'])
+                    intensities = np.array(color_data['intensities'])
+
+                # 필터 모드가 활성화되고 필터 데이터가 있는 경우
+                if filter_enabled and filter_data:
+                    if 'wavelength' in filter_data:
+                        filter_wavelengths = np.array(
+                            filter_data['wavelength'])
+                        filter_intensities = np.array(filter_data['intensity'])
+                    else:
+                        filter_wavelengths = np.array(
+                            filter_data['wavelengths'])
+                        filter_intensities = np.array(
+                            filter_data['intensities'])
+
+                    # 두 데이터 세트의 파장 범위 일치시키기
+                    min_wl = max(np.min(wavelengths),
+                                 np.min(filter_wavelengths))
+                    max_wl = min(np.max(wavelengths),
+                                 np.max(filter_wavelengths))
+
+                    # 원본 스펙트럼에서 공통 범위 필터링
+                    mask = (wavelengths >= min_wl) & (wavelengths <= max_wl)
+                    common_wavelengths = wavelengths[mask]
+                    common_intensities = intensities[mask]
+
+                    # 필터 데이터 보간
+                    from scipy.interpolate import interp1d
+                    filter_interp = interp1d(filter_wavelengths, filter_intensities,
+                                             bounds_error=False, fill_value=0, kind='linear')
+                    filter_values = filter_interp(common_wavelengths)
+
+                    # 스펙트럼과 필터 곱하기
+                    combined_intensities = common_intensities * filter_values
+
+                    # 결합된 데이터로 계산
+                    return common_wavelengths, combined_intensities
+
+                return wavelengths, intensities
+
+            # RGB 데이터 처리
+            r_wavelengths, r_intensities = process_color_data(
+                stored_data['r'], stored_data.get('r_filter'))
+            g_wavelengths, g_intensities = process_color_data(
+                stored_data['g'], stored_data.get('g_filter'))
+            b_wavelengths, b_intensities = process_color_data(
+                stored_data['b'], stored_data.get('b_filter'))
 
             # XYZ 값 계산
-            r_xyz = calculate_xyz_from_spectrum(
-                r_df['wavelength'].values, r_df['intensity'].values)
-            g_xyz = calculate_xyz_from_spectrum(
-                g_df['wavelength'].values, g_df['intensity'].values)
-            b_xyz = calculate_xyz_from_spectrum(
-                b_df['wavelength'].values, b_df['intensity'].values)
+            r_xyz = calculate_xyz_from_spectrum(r_wavelengths, r_intensities)
+            g_xyz = calculate_xyz_from_spectrum(g_wavelengths, g_intensities)
+            b_xyz = calculate_xyz_from_spectrum(b_wavelengths, b_intensities)
 
             # 모든 색좌표 계산 (CIE 1931 xy와 CIE 1976 u'v')
             r_coords_all = calculate_all_color_coordinates(r_xyz)
@@ -484,8 +708,14 @@ def register_callbacks(app):
                             'area_ratio': 0
                         }
 
+            # 필터 모드 표시 추가
+            filter_status = "필터 적용됨" if filter_enabled and (stored_data.get(
+                'r_filter') or stored_data.get('g_filter') or stored_data.get('b_filter')) else "필터 미적용"
+
             # 결과 표시
             results_html = [
+                html.Div(f"색 필터 상태: {filter_status}", style={
+                         'marginBottom': '10px', 'fontWeight': 'bold'}),
                 html.Table([
                     html.Thead(html.Tr([
                         html.Th("색공간", style={'fontSize': '12px',
@@ -535,17 +765,73 @@ def register_callbacks(app):
         [Output('input-r-data', 'value', allow_duplicate=True),
          Output('input-g-data', 'value', allow_duplicate=True),
          Output('input-b-data', 'value', allow_duplicate=True),
+         Output('input-r-filter-data', 'value', allow_duplicate=True),
+         Output('input-g-filter-data', 'value', allow_duplicate=True),
+         Output('input-b-filter-data', 'value', allow_duplicate=True),
          Output('spectrum-data-store', 'data', allow_duplicate=True)],
         [Input('reset-spectrum-inputs', 'n_clicks')],
-        prevent_initial_call=True
+        prevent_initial_call='initial_duplicate'
     )
     def reset_inputs(n_clicks):
         if n_clicks == 0:
-            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
         empty_data = {'r': None, 'g': None, 'b': None,
-                      'r_text': "", 'g_text': "", 'b_text': ""}
-        return "", "", "", json.dumps(empty_data)
+                      'r_text': "", 'g_text': "", 'b_text': "",
+                      'r_filter': None, 'g_filter': None, 'b_filter': None,
+                      'r_filter_text': "", 'g_filter_text': "", 'b_filter_text': "",
+                      'filter_mode': True}
+        return "", "", "", "", "", "", json.dumps(empty_data)
+
+    # 페이지 로드 시 저장된 스펙트럼 데이터 불러오기
+    @app.callback(
+        [Output('input-r-data', 'value', allow_duplicate=True),
+         Output('input-g-data', 'value', allow_duplicate=True),
+         Output('input-b-data', 'value', allow_duplicate=True),
+         Output('input-r-filter-data', 'value', allow_duplicate=True),
+         Output('input-g-filter-data', 'value', allow_duplicate=True),
+         Output('input-b-filter-data', 'value', allow_duplicate=True),
+         Output('spectrum-graph', 'figure', allow_duplicate=True),
+         Output('color-filter-mode', 'value', allow_duplicate=True)],
+        [Input('url', 'pathname')],
+        [State('spectrum-data-store', 'data')],
+        prevent_initial_call='initial_duplicate'
+    )
+    def load_saved_spectrum_data(pathname, stored_data):
+        # 스펙트럼 분석 탭인 경우에만 실행 (다른 탭과 충돌 방지)
+        if pathname != '/' and pathname != '/home':
+            raise dash.exceptions.PreventUpdate
+
+        if stored_data is None:
+            empty_fig = create_empty_figure("스펙트럼 분석", "데이터를 입력하세요.")
+            return "", "", "", "", "", "", empty_fig, ['enabled']
+
+        try:
+            stored_data = json.loads(stored_data) if isinstance(
+                stored_data, str) else stored_data
+
+            # 원본 텍스트 데이터 불러오기
+            r_text = stored_data.get('r_text', "")
+            g_text = stored_data.get('g_text', "")
+            b_text = stored_data.get('b_text', "")
+
+            # 필터 텍스트 데이터 불러오기
+            r_filter_text = stored_data.get('r_filter_text', "")
+            g_filter_text = stored_data.get('g_filter_text', "")
+            b_filter_text = stored_data.get('b_filter_text', "")
+
+            # 필터 모드 상태 불러오기
+            filter_mode = stored_data.get('filter_mode', True)
+            filter_mode_value = ['enabled'] if filter_mode else []
+
+            # 그래프 업데이트
+            fig = create_spectrum_figure(stored_data)
+
+            return r_text, g_text, b_text, r_filter_text, g_filter_text, b_filter_text, fig, filter_mode_value
+        except Exception as e:
+            print(f"저장된 데이터 불러오기 오류: {str(e)}")
+            empty_fig = create_empty_figure("스펙트럼 분석", "데이터를 입력하세요.")
+            return "", "", "", "", "", "", empty_fig, ['enabled']
 
 
 def create_spectrum_figure(stored_data):
@@ -555,18 +841,74 @@ def create_spectrum_figure(stored_data):
     # 색상 정의
     colors = {'r': '#e74c3c', 'g': '#27ae60', 'b': '#3498db'}
     names = {'r': 'R 스펙트럼', 'g': 'G 스펙트럼', 'b': 'B 스펙트럼'}
+    filter_names = {'r_filter': 'R 필터', 'g_filter': 'G 필터', 'b_filter': 'B 필터'}
 
-    # 각 색상 데이터 추가
+    # 필터 모드 확인
+    filter_mode = stored_data.get('filter_mode', True)
+
+    # 각 색상 데이터 처리
     for color in ['r', 'g', 'b']:
-        if stored_data.get(color):
-            df = pd.DataFrame(stored_data[color])
-            fig.add_trace(go.Scatter(
-                x=df['wavelength'],
-                y=df['intensity'],
-                mode='lines',
-                name=names[color],
-                line=dict(color=colors[color], width=2)
-            ))
+        color_data = stored_data.get(color)
+        filter_data = stored_data.get(f'{color}_filter')
+
+        if color_data:
+            wavelengths = np.array(color_data['wavelength']) if 'wavelength' in color_data else np.array(
+                color_data['wavelengths'])
+            intensities = np.array(color_data['intensity']) if 'intensity' in color_data else np.array(
+                color_data['intensities'])
+
+            # 필터 모드이고 필터 데이터가 있는 경우
+            if filter_mode and filter_data:
+                filter_wavelengths = np.array(
+                    filter_data['wavelength']) if 'wavelength' in filter_data else np.array(filter_data['wavelengths'])
+                filter_intensities = np.array(
+                    filter_data['intensity']) if 'intensity' in filter_data else np.array(filter_data['intensities'])
+
+                # 두 데이터 세트의 파장 범위 일치시키기
+                min_wl = max(np.min(wavelengths), np.min(filter_wavelengths))
+                max_wl = min(np.max(wavelengths), np.max(filter_wavelengths))
+
+                # 원본 스펙트럼에서 공통 범위 필터링
+                mask = (wavelengths >= min_wl) & (wavelengths <= max_wl)
+                common_wavelengths = wavelengths[mask]
+                common_intensities = intensities[mask]
+
+                # 필터 데이터 보간
+                from scipy.interpolate import interp1d
+                filter_interp = interp1d(filter_wavelengths, filter_intensities,
+                                         bounds_error=False, fill_value=0, kind='linear')
+                filter_values = filter_interp(common_wavelengths)
+
+                # 스펙트럼과 필터 곱하기
+                combined_intensities = common_intensities * filter_values
+
+                # 필터만 표시 (점선)
+                fig.add_trace(go.Scatter(
+                    x=filter_wavelengths,
+                    y=filter_intensities,
+                    mode='lines',
+                    name=filter_names[f'{color}_filter'],
+                    line=dict(color=colors[color], width=1, dash='dash'),
+                    opacity=0.7
+                ))
+
+                # 결합된 스펙트럼 표시
+                fig.add_trace(go.Scatter(
+                    x=common_wavelengths,
+                    y=combined_intensities,
+                    mode='lines',
+                    name=f"{names[color]} (필터 적용)",
+                    line=dict(color=colors[color], width=2)
+                ))
+            else:
+                # 일반 스펙트럼만 표시
+                fig.add_trace(go.Scatter(
+                    x=wavelengths,
+                    y=intensities,
+                    mode='lines',
+                    name=names[color],
+                    line=dict(color=colors[color], width=2)
+                ))
 
     # 레이아웃 설정
     fig.update_layout(
@@ -749,9 +1091,8 @@ def create_cie_diagram(r_coords, g_coords, b_coords, color_spaces, diagram_type=
                 ))
 
         if r_coords and g_coords and b_coords:
-
             u_points = [r_coords[0], g_coords[0], b_coords[0], r_coords[0]]
-            v_points = [r_coords[1], g_coords[1], b_coords[1], r_coords[1]]
+            u_points = [r_coords[1], g_coords[1], b_coords[1], r_coords[1]]
 
             fig.add_trace(go.Scatter(
                 x=u_points,
@@ -968,7 +1309,7 @@ def calculate_gamut_coverage_simple(sample, standard, coord_type='xy'):
         # 면적비 계산 (샘플/표준 * 100)
         area_ratio = (sample_area / standard_area) * 100
 
-        # 중첩 영역 계산을 위한 convex hull 분석
+        # 중첩 영역 계산을 위해 convex hull 분석
         # 단순화를 위해 색재현율은 면적비의 90%로 근사값 사용
         coverage = min(area_ratio * 0.9, 100)  # 최대 100%로 제한
 
