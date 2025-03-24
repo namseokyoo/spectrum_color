@@ -259,5 +259,5 @@ if __name__ == '__main__':
     except KeyboardInterrupt:
         shutdown_server()
 
-# version 1.0.1
+# version 1.0.2
 # 모드에 따라 스펙트럼 그래프 표시 추가
