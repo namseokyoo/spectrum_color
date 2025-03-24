@@ -17,12 +17,17 @@ app = dash.Dash(__name__, suppress_callback_exceptions=True)
 server = app.server
 
 # 브라우저 자동 실행을 위한 함수
+
+
 def open_browser():
     webbrowser.open_new("http://127.0.0.1:8050")
 
     # 서버 종료 함수
+
+
 def shutdown_server():
     os._exit(0)
+
 
 # 레이아웃 정의
 app.layout = html.Div([
@@ -253,3 +258,6 @@ if __name__ == '__main__':
         app.run_server(debug=False, host="127.0.0.1", port=8050)
     except KeyboardInterrupt:
         shutdown_server()
+
+# version 1.0.1
+# 모드에 따라 스펙트럼 그래프 표시 추가
