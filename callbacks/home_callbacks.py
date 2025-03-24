@@ -710,7 +710,6 @@ def register_callbacks(app):
     def update_color_analysis(stored_data, color_spaces, diagram_type, filter_mode):
         # 데이터 없음 체크를 더 강화
         if not stored_data or stored_data == '{}' or stored_data == 'null':
-            # 데이터가 없을 때도 기본 색공간이 포함된 다이어그램 표시
             return "RGB 스펙트럼 데이터를 모두 입력하세요.", create_empty_cie_diagram(diagram_type)
 
         try:
@@ -718,13 +717,12 @@ def register_callbacks(app):
             if isinstance(stored_data, str):
                 stored_data = json.loads(stored_data)
 
-            # 빈 객체인 경우 체크
+            # 빈 객체인 경우 체크 - 강화된 조건
             if not stored_data:
                 return "RGB 스펙트럼 데이터를 모두 입력하세요.", create_empty_cie_diagram(diagram_type)
 
-            # R, G, B 데이터가 모두 있는지 확인
-            if not stored_data.get('r') or not stored_data.get('g') or not stored_data.get('b'):
-                # 데이터가 일부 누락되었을 때도 기본 색공간이 포함된 다이어그램 표시
+            # RGB 데이터가 모두 존재하는지 명시적으로 확인
+            if not (stored_data.get('r') and stored_data.get('g') and stored_data.get('b')):
                 return "RGB 스펙트럼 데이터를 모두 입력하세요.", create_empty_cie_diagram(diagram_type)
 
             # 필터 모드 설정 확인
@@ -920,11 +918,12 @@ def register_callbacks(app):
         if n_clicks == 0:
             return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
+        # 완전히 빈 객체로 초기화 (filter_mode를 False로 설정)
         empty_data = {'r': None, 'g': None, 'b': None,
                       'r_text': "", 'g_text': "", 'b_text': "",
                       'r_filter': None, 'g_filter': None, 'b_filter': None,
                       'r_filter_text': "", 'g_filter_text': "", 'b_filter_text': "",
-                      'filter_mode': True}
+                      'filter_mode': False}
         return "", "", "", "", "", "", json.dumps(empty_data)
 
     # 페이지 로드 시 저장된 스펙트럼 데이터 불러오기
@@ -983,27 +982,12 @@ def create_spectrum_figure(stored_data):
     fig = go.Figure()
 
     # 저장된 데이터가 없거나 유효하지 않은 경우 빈 그래프 반환
-    if not stored_data or (not stored_data.get('r') and not stored_data.get('g') and not stored_data.get('b') and
-                           not stored_data.get('r_filter') and not stored_data.get('g_filter') and not stored_data.get('b_filter')):
-        # 안내 메시지 추가
-        fig.add_annotation(
-            text="데이터를 입력하세요.",
-            xref="paper", yref="paper",
-            x=0.5, y=0.5,
-            showarrow=False,
-            font=dict(size=14)
-        )
-
-        # 레이아웃 설정
-        fig.update_layout(
-            xaxis_title='파장 (nm)',
-            yaxis_title='강도 (상대값)',
-            template='plotly_white',
-            xaxis=dict(range=[380, 780]),
-            yaxis=dict(range=[0, 1]),
-            margin=dict(l=50, r=50, t=30, b=50)
-        )
-        return fig
+    if not stored_data:
+        return create_empty_figure("스펙트럼 분석", "데이터를 입력하세요.")
+        
+    # 모든 데이터 키가 None인지 확인 (더 강화된 체크)
+    if not any(stored_data.get(k) for k in ['r', 'g', 'b', 'r_filter', 'g_filter', 'b_filter']):
+        return create_empty_figure("스펙트럼 분석", "데이터를 입력하세요.")
 
     # 색상 정의
     colors = {'r': '#e74c3c', 'g': '#27ae60', 'b': '#3498db'}
@@ -1047,7 +1031,7 @@ def create_spectrum_figure(stored_data):
                 # 필터 데이터 보간
                 from scipy.interpolate import interp1d
                 filter_interp = interp1d(filter_wavelengths, filter_intensities,
-                                         bounds_error=False, fill_value=0, kind='linear')
+                                        bounds_error=False, fill_value=0, kind='linear')
                 filter_values = filter_interp(common_wavelengths)
 
                 # 스펙트럼과 필터 곱하기
@@ -1061,6 +1045,16 @@ def create_spectrum_figure(stored_data):
                     name=f"{combined_names[color]}",
                     line=dict(color=colors[color], width=2)
                 ))
+
+                # 필터 모드가 활성화되어 있을 때도 필터 그래프 추가 표시 (요구사항 2)
+                fig.add_trace(go.Scatter(
+                    x=filter_wavelengths,
+                    y=filter_intensities,
+                    mode='lines',
+                    name=filter_names[f"{color}_filter"],
+                    line=dict(color=colors[color], width=1, dash='dash'),
+                    opacity=0.7
+                ))
             else:
                 # 필터 모드가 꺼져 있거나 필터 데이터가 없는 경우 - 원본 EL 스펙트럼만 표시
                 fig.add_trace(go.Scatter(
@@ -1071,33 +1065,22 @@ def create_spectrum_figure(stored_data):
                     line=dict(color=colors[color], width=2)
                 ))
 
-        # 2. 필터 데이터 처리 (있을 경우) - 필터 모드가 꺼져 있으면 독립적으로 표시
-        if filter_data:
+        # 2. 필터 데이터 처리 - 필터 모드 비활성화 시에만 별도 표시 (요구사항 1)
+        if filter_data and (not filter_enabled or not color_data):
             filter_wavelengths = np.array(
                 filter_data['wavelength']) if 'wavelength' in filter_data else np.array(filter_data['wavelengths'])
             filter_intensities = np.array(
                 filter_data['intensity']) if 'intensity' in filter_data else np.array(filter_data['intensities'])
 
-            # 필터 모드가 꺼져 있거나 EL 데이터가 없는 경우에 필터 그래프 표시
-            if not filter_enabled or not color_data:
-                fig.add_trace(go.Scatter(
-                    x=filter_wavelengths,
-                    y=filter_intensities,
-                    mode='lines',
-                    name=filter_names[f"{color}_filter"],
-                    line=dict(color=colors[color], width=1, dash='dash'),
-                    opacity=0.7
-                ))
-            # 필터 모드가 켜져 있더라도 필터 그래프를 항상 표시하도록 할 수 있음
-            elif filter_enabled:
-                fig.add_trace(go.Scatter(
-                    x=filter_wavelengths,
-                    y=filter_intensities,
-                    mode='lines',
-                    name=filter_names[f"{color}_filter"],
-                    line=dict(color=colors[color], width=1, dash='dash'),
-                    opacity=0.7
-                ))
+            # 필터 그래프 점선으로 표시
+            fig.add_trace(go.Scatter(
+                x=filter_wavelengths,
+                y=filter_intensities,
+                mode='lines',
+                name=filter_names[f"{color}_filter"],
+                line=dict(color=colors[color], width=1, dash='dash'),
+                opacity=0.7
+            ))
 
     # 레이아웃 설정
     fig.update_layout(
@@ -1234,8 +1217,9 @@ def create_cie_diagram(r_coords, g_coords, b_coords, color_spaces, diagram_type=
         xaxis_range = [0, 0.7]
         yaxis_range = [0, 0.6]
 
+        # 스펙트럼 궤적 생성 및 변환 (더 정밀하게)
         x_spectral, y_spectral = color_math.generate_spectral_locus(
-            start_nm=380, end_nm=780, step=0.5)
+            start_nm=380, end_nm=780, step=1.0)  # 더 작은 간격으로 생성
 
         u_spectral, v_spectral = [], []
         for i in range(len(x_spectral)):
