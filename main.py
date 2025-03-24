@@ -255,9 +255,9 @@ def update_results_table(n_clicks, data):
 if __name__ == '__main__':
     threading.Timer(1.5, open_browser).start()
     try:
-        app.run_server(debug=False, host="127.0.0.1", port=8050)
+        app.run_server(debug=True, host="127.0.0.1", port=8050)
     except KeyboardInterrupt:
         shutdown_server()
 
-# version 1.0.2
+# version 1.0.3
 # 모드에 따라 스펙트럼 그래프 표시 추가

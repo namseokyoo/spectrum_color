@@ -120,6 +120,14 @@ def register_callbacks(app):
     )
     def update_spectrum_data(r_data, g_data, b_data, r_filter_data, g_filter_data, b_filter_data, normalize_options, filter_mode, stored_data):
         ctx = callback_context
+        trigger_id = ctx.triggered[0]['prop_id'] if ctx.triggered else None
+
+        # 디버깅을 위한 로그 추가
+        print(f"콜백 트리거: {trigger_id}")
+        print(f"R 데이터 타입: {type(r_data)}, 값: {r_data}")
+        print(f"G 데이터 타입: {type(g_data)}, 값: {g_data}")
+        print(f"B 데이터 타입: {type(b_data)}, 값: {b_data}")
+
         if not ctx.triggered:
             # 초기 로드 시 저장된 데이터가 있으면 반환, 없으면 빈 그래프
             if stored_data:
@@ -180,92 +188,203 @@ def register_callbacks(app):
         # 필터 모드 상태 업데이트
         data_dict['filter_mode'] = 'enabled' in filter_mode if filter_mode else False
 
-        # RGB 스펙트럼 데이터 처리
-        # 빈 입력인 경우 데이터 명시적으로 삭제 - 더 강화된 체크
-        if r_data is None or (isinstance(r_data, str) and r_data.strip() == ""):
-            data_dict['r'] = None
-            data_dict['r_text'] = ""
-        elif r_data:
-            df_r = parse_text_data_flexible(r_data)
-            if df_r is not None:
-                # 정규화 옵션 적용
-                if normalize_options and 'normalize' in normalize_options:
-                    df_r['intensity'] = df_r['intensity'] / \
-                        df_r['intensity'].max()
-                data_dict['r'] = df_r.to_dict('list')
-                data_dict['r_text'] = r_data
+        # 트리거 식별 및 입력 상태 확인
+        # 윈도우에서 입력 필드 변경 감지 개선
+        changed_input = trigger_id.split('.')[0] if trigger_id else None
 
-        if g_data is None or (isinstance(g_data, str) and g_data.strip() == ""):
-            data_dict['g'] = None
-            data_dict['g_text'] = ""
-        elif g_data:
-            df_g = parse_text_data_flexible(g_data)
-            if df_g is not None:
-                # 정규화 옵션 적용
-                if normalize_options and 'normalize' in normalize_options:
-                    df_g['intensity'] = df_g['intensity'] / \
-                        df_g['intensity'].max()
-                data_dict['g'] = df_g.to_dict('list')
-                data_dict['g_text'] = g_data
+        # 디버깅 로그
+        print(f"변경된 입력: {changed_input}")
 
-        if b_data is None or (isinstance(b_data, str) and b_data.strip() == ""):
-            data_dict['b'] = None
-            data_dict['b_text'] = ""
-        elif b_data:
-            df_b = parse_text_data_flexible(b_data)
-            if df_b is not None:
-                # 정규화 옵션 적용
-                if normalize_options and 'normalize' in normalize_options:
-                    df_b['intensity'] = df_b['intensity'] / \
-                        df_b['intensity'].max()
-                data_dict['b'] = df_b.to_dict('list')
-                data_dict['b_text'] = b_data
+        # 어떤 입력이 트리거되었는지 확인하고 해당 데이터 처리
+        if changed_input == 'input-r-data':
+            # 빈 입력인 경우 데이터 명시적으로 삭제
+            if r_data is None or (isinstance(r_data, str) and r_data.strip() == ""):
+                data_dict['r'] = None
+                data_dict['r_text'] = ""
+                print("R 데이터 삭제됨")
+            elif r_data:
+                df_r = parse_text_data_flexible(r_data)
+                if df_r is not None:
+                    # 정규화 옵션 적용
+                    if normalize_options and 'normalize' in normalize_options:
+                        df_r['intensity'] = df_r['intensity'] / \
+                            df_r['intensity'].max()
+                    data_dict['r'] = df_r.to_dict('list')
+                    data_dict['r_text'] = r_data
+                    print("R 데이터 업데이트됨")
 
-        # 필터 스펙트럼 데이터 처리
-        if r_filter_data is None or (isinstance(r_filter_data, str) and r_filter_data.strip() == ""):
-            data_dict['r_filter'] = None
-            data_dict['r_filter_text'] = ""
-        elif r_filter_data:
-            df_r_filter = parse_text_data_flexible(r_filter_data)
-            if df_r_filter is not None:
-                # 정규화 옵션 적용
-                if normalize_options and 'normalize' in normalize_options:
-                    df_r_filter['intensity'] = df_r_filter['intensity'] / \
-                        df_r_filter['intensity'].max()
-                data_dict['r_filter'] = df_r_filter.to_dict('list')
-                data_dict['r_filter_text'] = r_filter_data
+        elif changed_input == 'input-g-data':
+            if g_data is None or (isinstance(g_data, str) and g_data.strip() == ""):
+                data_dict['g'] = None
+                data_dict['g_text'] = ""
+                print("G 데이터 삭제됨")
+            elif g_data:
+                df_g = parse_text_data_flexible(g_data)
+                if df_g is not None:
+                    # 정규화 옵션 적용
+                    if normalize_options and 'normalize' in normalize_options:
+                        df_g['intensity'] = df_g['intensity'] / \
+                            df_g['intensity'].max()
+                    data_dict['g'] = df_g.to_dict('list')
+                    data_dict['g_text'] = g_data
+                    print("G 데이터 업데이트됨")
 
-        if g_filter_data is None or (isinstance(g_filter_data, str) and g_filter_data.strip() == ""):
-            data_dict['g_filter'] = None
-            data_dict['g_filter_text'] = ""
-        elif g_filter_data:
-            df_g_filter = parse_text_data_flexible(g_filter_data)
-            if df_g_filter is not None:
-                # 정규화 옵션 적용
-                if normalize_options and 'normalize' in normalize_options:
-                    df_g_filter['intensity'] = df_g_filter['intensity'] / \
-                        df_g_filter['intensity'].max()
-                data_dict['g_filter'] = df_g_filter.to_dict('list')
-                data_dict['g_filter_text'] = g_filter_data
+        elif changed_input == 'input-b-data':
+            if b_data is None or (isinstance(b_data, str) and b_data.strip() == ""):
+                data_dict['b'] = None
+                data_dict['b_text'] = ""
+                print("B 데이터 삭제됨")
+            elif b_data:
+                df_b = parse_text_data_flexible(b_data)
+                if df_b is not None:
+                    # 정규화 옵션 적용
+                    if normalize_options and 'normalize' in normalize_options:
+                        df_b['intensity'] = df_b['intensity'] / \
+                            df_b['intensity'].max()
+                    data_dict['b'] = df_b.to_dict('list')
+                    data_dict['b_text'] = b_data
+                    print("B 데이터 업데이트됨")
 
-        if b_filter_data is None or (isinstance(b_filter_data, str) and b_filter_data.strip() == ""):
-            data_dict['b_filter'] = None
-            data_dict['b_filter_text'] = ""
-        elif b_filter_data:
-            df_b_filter = parse_text_data_flexible(b_filter_data)
-            if df_b_filter is not None:
-                # 정규화 옵션 적용
-                if normalize_options and 'normalize' in normalize_options:
-                    df_b_filter['intensity'] = df_b_filter['intensity'] / \
-                        df_b_filter['intensity'].max()
-                data_dict['b_filter'] = df_b_filter.to_dict('list')
-                data_dict['b_filter_text'] = b_filter_data
+        elif changed_input == 'input-r-filter-data':
+            if r_filter_data is None or (isinstance(r_filter_data, str) and r_filter_data.strip() == ""):
+                data_dict['r_filter'] = None
+                data_dict['r_filter_text'] = ""
+                print("R 필터 데이터 삭제됨")
+            elif r_filter_data:
+                df_r_filter = parse_text_data_flexible(r_filter_data)
+                if df_r_filter is not None:
+                    # 정규화 옵션 적용
+                    if normalize_options and 'normalize' in normalize_options:
+                        df_r_filter['intensity'] = df_r_filter['intensity'] / \
+                            df_r_filter['intensity'].max()
+                    data_dict['r_filter'] = df_r_filter.to_dict('list')
+                    data_dict['r_filter_text'] = r_filter_data
+                    print("R 필터 데이터 업데이트됨")
+
+        elif changed_input == 'input-g-filter-data':
+            if g_filter_data is None or (isinstance(g_filter_data, str) and g_filter_data.strip() == ""):
+                data_dict['g_filter'] = None
+                data_dict['g_filter_text'] = ""
+                print("G 필터 데이터 삭제됨")
+            elif g_filter_data:
+                df_g_filter = parse_text_data_flexible(g_filter_data)
+                if df_g_filter is not None:
+                    # 정규화 옵션 적용
+                    if normalize_options and 'normalize' in normalize_options:
+                        df_g_filter['intensity'] = df_g_filter['intensity'] / \
+                            df_g_filter['intensity'].max()
+                    data_dict['g_filter'] = df_g_filter.to_dict('list')
+                    data_dict['g_filter_text'] = g_filter_data
+                    print("G 필터 데이터 업데이트됨")
+
+        elif changed_input == 'input-b-filter-data':
+            if b_filter_data is None or (isinstance(b_filter_data, str) and b_filter_data.strip() == ""):
+                data_dict['b_filter'] = None
+                data_dict['b_filter_text'] = ""
+                print("B 필터 데이터 삭제됨")
+            elif b_filter_data:
+                df_b_filter = parse_text_data_flexible(b_filter_data)
+                if df_b_filter is not None:
+                    # 정규화 옵션 적용
+                    if normalize_options and 'normalize' in normalize_options:
+                        df_b_filter['intensity'] = df_b_filter['intensity'] / \
+                            df_b_filter['intensity'].max()
+                    data_dict['b_filter'] = df_b_filter.to_dict('list')
+                    data_dict['b_filter_text'] = b_filter_data
+                    print("B 필터 데이터 업데이트됨")
+
+        # 기본 경우 (normalize-spectrum, color-filter-mode 등의 변경)
+        else:
+            # 기존의 전체 데이터 처리 로직 유지
+            # RGB 스펙트럼 데이터 처리
+            if r_data is None or (isinstance(r_data, str) and r_data.strip() == ""):
+                data_dict['r'] = None
+                data_dict['r_text'] = ""
+            elif r_data:
+                df_r = parse_text_data_flexible(r_data)
+                if df_r is not None:
+                    # 정규화 옵션 적용
+                    if normalize_options and 'normalize' in normalize_options:
+                        df_r['intensity'] = df_r['intensity'] / \
+                            df_r['intensity'].max()
+                    data_dict['r'] = df_r.to_dict('list')
+                    data_dict['r_text'] = r_data
+
+            if g_data is None or (isinstance(g_data, str) and g_data.strip() == ""):
+                data_dict['g'] = None
+                data_dict['g_text'] = ""
+            elif g_data:
+                df_g = parse_text_data_flexible(g_data)
+                if df_g is not None:
+                    # 정규화 옵션 적용
+                    if normalize_options and 'normalize' in normalize_options:
+                        df_g['intensity'] = df_g['intensity'] / \
+                            df_g['intensity'].max()
+                    data_dict['g'] = df_g.to_dict('list')
+                    data_dict['g_text'] = g_data
+
+            if b_data is None or (isinstance(b_data, str) and b_data.strip() == ""):
+                data_dict['b'] = None
+                data_dict['b_text'] = ""
+            elif b_data:
+                df_b = parse_text_data_flexible(b_data)
+                if df_b is not None:
+                    # 정규화 옵션 적용
+                    if normalize_options and 'normalize' in normalize_options:
+                        df_b['intensity'] = df_b['intensity'] / \
+                            df_b['intensity'].max()
+                    data_dict['b'] = df_b.to_dict('list')
+                    data_dict['b_text'] = b_data
+
+            # 필터 스펙트럼 데이터 처리
+            if r_filter_data is None or (isinstance(r_filter_data, str) and r_filter_data.strip() == ""):
+                data_dict['r_filter'] = None
+                data_dict['r_filter_text'] = ""
+            elif r_filter_data:
+                df_r_filter = parse_text_data_flexible(r_filter_data)
+                if df_r_filter is not None:
+                    # 정규화 옵션 적용
+                    if normalize_options and 'normalize' in normalize_options:
+                        df_r_filter['intensity'] = df_r_filter['intensity'] / \
+                            df_r_filter['intensity'].max()
+                    data_dict['r_filter'] = df_r_filter.to_dict('list')
+                    data_dict['r_filter_text'] = r_filter_data
+
+            if g_filter_data is None or (isinstance(g_filter_data, str) and g_filter_data.strip() == ""):
+                data_dict['g_filter'] = None
+                data_dict['g_filter_text'] = ""
+            elif g_filter_data:
+                df_g_filter = parse_text_data_flexible(g_filter_data)
+                if df_g_filter is not None:
+                    # 정규화 옵션 적용
+                    if normalize_options and 'normalize' in normalize_options:
+                        df_g_filter['intensity'] = df_g_filter['intensity'] / \
+                            df_g_filter['intensity'].max()
+                    data_dict['g_filter'] = df_g_filter.to_dict('list')
+                    data_dict['g_filter_text'] = g_filter_data
+
+            if b_filter_data is None or (isinstance(b_filter_data, str) and b_filter_data.strip() == ""):
+                data_dict['b_filter'] = None
+                data_dict['b_filter_text'] = ""
+            elif b_filter_data:
+                df_b_filter = parse_text_data_flexible(b_filter_data)
+                if df_b_filter is not None:
+                    # 정규화 옵션 적용
+                    if normalize_options and 'normalize' in normalize_options:
+                        df_b_filter['intensity'] = df_b_filter['intensity'] / \
+                            df_b_filter['intensity'].max()
+                    data_dict['b_filter'] = df_b_filter.to_dict('list')
+                    data_dict['b_filter_text'] = b_filter_data
 
         # 그래프 생성
         fig = create_spectrum_figure(data_dict)
 
         # 데이터를 JSON 문자열로 변환하여 저장
         json_data = json.dumps(data_dict)
+
+        # 처리 결과 로그
+        print(
+            f"데이터 처리 완료: R={data_dict['r'] is not None}, G={data_dict['g'] is not None}, B={data_dict['b'] is not None}")
 
         return fig, json_data, r_data, g_data, b_data, r_filter_data, g_filter_data, b_filter_data
 
