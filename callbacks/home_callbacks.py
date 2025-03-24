@@ -181,8 +181,8 @@ def register_callbacks(app):
         data_dict['filter_mode'] = 'enabled' in filter_mode if filter_mode else False
 
         # RGB 스펙트럼 데이터 처리
-        # 빈 입력인 경우 데이터 명시적으로 삭제
-        if not r_data:
+        # 빈 입력인 경우 데이터 명시적으로 삭제 - 더 강화된 체크
+        if r_data is None or (isinstance(r_data, str) and r_data.strip() == ""):
             data_dict['r'] = None
             data_dict['r_text'] = ""
         elif r_data:
@@ -195,7 +195,7 @@ def register_callbacks(app):
                 data_dict['r'] = df_r.to_dict('list')
                 data_dict['r_text'] = r_data
 
-        if not g_data:
+        if g_data is None or (isinstance(g_data, str) and g_data.strip() == ""):
             data_dict['g'] = None
             data_dict['g_text'] = ""
         elif g_data:
@@ -208,7 +208,7 @@ def register_callbacks(app):
                 data_dict['g'] = df_g.to_dict('list')
                 data_dict['g_text'] = g_data
 
-        if not b_data:
+        if b_data is None or (isinstance(b_data, str) and b_data.strip() == ""):
             data_dict['b'] = None
             data_dict['b_text'] = ""
         elif b_data:
@@ -222,7 +222,7 @@ def register_callbacks(app):
                 data_dict['b_text'] = b_data
 
         # 필터 스펙트럼 데이터 처리
-        if not r_filter_data:
+        if r_filter_data is None or (isinstance(r_filter_data, str) and r_filter_data.strip() == ""):
             data_dict['r_filter'] = None
             data_dict['r_filter_text'] = ""
         elif r_filter_data:
@@ -235,7 +235,7 @@ def register_callbacks(app):
                 data_dict['r_filter'] = df_r_filter.to_dict('list')
                 data_dict['r_filter_text'] = r_filter_data
 
-        if not g_filter_data:
+        if g_filter_data is None or (isinstance(g_filter_data, str) and g_filter_data.strip() == ""):
             data_dict['g_filter'] = None
             data_dict['g_filter_text'] = ""
         elif g_filter_data:
@@ -248,7 +248,7 @@ def register_callbacks(app):
                 data_dict['g_filter'] = df_g_filter.to_dict('list')
                 data_dict['g_filter_text'] = g_filter_data
 
-        if not b_filter_data:
+        if b_filter_data is None or (isinstance(b_filter_data, str) and b_filter_data.strip() == ""):
             data_dict['b_filter'] = None
             data_dict['b_filter_text'] = ""
         elif b_filter_data:
