@@ -708,7 +708,7 @@ def register_callbacks(app):
         prevent_initial_call=False
     )
     def update_color_analysis(stored_data, color_spaces, diagram_type, filter_mode):
-        # 데이터 없음 체크를 더 강화
+        # 데이터 없음 체크
         if not stored_data or stored_data == '{}' or stored_data == 'null':
             return "RGB 스펙트럼 데이터를 모두 입력하세요.", create_empty_cie_diagram(diagram_type)
 
@@ -716,10 +716,6 @@ def register_callbacks(app):
             # JSON 문자열이면 파싱
             if isinstance(stored_data, str):
                 stored_data = json.loads(stored_data)
-
-            # 빈 객체인 경우 체크 - 강화된 조건
-            if not stored_data:
-                return "RGB 스펙트럼 데이터를 모두 입력하세요.", create_empty_cie_diagram(diagram_type)
 
             # RGB 데이터가 모두 존재하는지 명시적으로 확인
             if not (stored_data.get('r') and stored_data.get('g') and stored_data.get('b')):
@@ -787,7 +783,7 @@ def register_callbacks(app):
             g_xyz = calculate_xyz_from_spectrum(g_wavelengths, g_intensities)
             b_xyz = calculate_xyz_from_spectrum(b_wavelengths, b_intensities)
 
-            # 모든 색좌표 계산 (CIE 1931 xy와 CIE 1976 u'v')
+            # 모든 색좌표 계산
             r_coords_all = calculate_all_color_coordinates(r_xyz)
             g_coords_all = calculate_all_color_coordinates(g_xyz)
             b_coords_all = calculate_all_color_coordinates(b_xyz)
@@ -797,71 +793,52 @@ def register_callbacks(app):
             g_coords = g_coords_all[diagram_type]
             b_coords = b_coords_all[diagram_type]
 
-            # 색재현율 계산 (CIE 1931 xy와 CIE 1976 u'v' 모두)
+            # 색재현율 계산 (utils.color_math의 calculate_gamut_coverage 함수 사용)
             gamut_results_xy = {}
             gamut_results_uv = {}
-
+            
             # 색공간 정보 가져오기
             all_color_spaces = get_color_spaces()
-
+            
             for color_space_name in color_spaces:
                 if color_space_name in all_color_spaces:
                     # 측정된 RGB 좌표
-                    sample_xy = {
+                    sample = {
                         'red': list(r_coords_all['xy']),
                         'green': list(g_coords_all['xy']),
                         'blue': list(b_coords_all['xy'])
                     }
-
-                    sample_uv = {
-                        'red': list(r_coords_all['uv']),
-                        'green': list(g_coords_all['uv']),
-                        'blue': list(b_coords_all['uv'])
-                    }
-
+                    
                     # 표준 색공간 정보
                     cs_info = all_color_spaces[color_space_name]
-
-                    # xy 색공간에서 색재현율 계산
+                    
                     try:
-                        # xy 좌표계에서 직접 계산
-                        coverage_xy, area_ratio_xy = calculate_gamut_coverage_simple(
-                            sample_xy, cs_info, 'xy')
-                        coverage_uv, area_ratio_uv = calculate_gamut_coverage_simple(
-                            sample_uv, cs_info, 'uv')
-
+                        # calculate_gamut_coverage 함수는 4개의 값을 반환합니다
+                        xy_coverage, xy_area, uv_coverage, uv_area = calculate_gamut_coverage(sample, cs_info)
+                        
                         gamut_results_xy[color_space_name] = {
-                            'overlap_ratio': coverage_xy,
-                            'area_ratio': area_ratio_xy
+                            'overlap_ratio': xy_coverage,
+                            'area_ratio': xy_area
                         }
-
+                        
                         gamut_results_uv[color_space_name] = {
-                            'overlap_ratio': coverage_uv,
-                            'area_ratio': area_ratio_uv
+                            'overlap_ratio': uv_coverage,
+                            'area_ratio': uv_area
                         }
                     except Exception as e:
                         print(f"색공간 {color_space_name} 계산 오류: {str(e)}")
-                        gamut_results_xy[color_space_name] = {
-                            'overlap_ratio': 0,
-                            'area_ratio': 0
-                        }
-                        gamut_results_uv[color_space_name] = {
-                            'overlap_ratio': 0,
-                            'area_ratio': 0
-                        }
-
+                        gamut_results_xy[color_space_name] = {'overlap_ratio': 0, 'area_ratio': 0}
+                        gamut_results_uv[color_space_name] = {'overlap_ratio': 0, 'area_ratio': 0}
+            
             # CIE 다이어그램 생성
-            cie_fig = create_cie_diagram(
-                r_coords, g_coords, b_coords, color_spaces, diagram_type)
+            cie_fig = create_cie_diagram(r_coords, g_coords, b_coords, color_spaces, diagram_type)
 
             # 필터 모드 표시 추가
-            filter_status = "필터 적용됨" if filter_enabled and (stored_data.get(
-                'r_filter') or stored_data.get('g_filter') or stored_data.get('b_filter')) else "필터 미적용"
+            filter_status = "필터 적용됨" if filter_enabled and (stored_data.get('r_filter') or stored_data.get('g_filter') or stored_data.get('b_filter')) else "필터 미적용"
 
             # 결과 표시
             results_html = [
-                html.Div(f"색 필터 상태: {filter_status}", style={
-                         'marginBottom': '10px', 'fontWeight': 'bold'}),
+                html.Div(f"색 필터 상태: {filter_status}", style={'marginBottom': '10px', 'fontWeight': 'bold'}),
                 html.Table([
                     html.Thead(html.Tr([
                         html.Th("색공간", style={'fontSize': '12px',
@@ -1436,60 +1413,6 @@ def create_empty_cie_diagram(diagram_type='xy'):
     )
 
     return fig
-
-# 간단한 색재현율 계산 함수 추가
-
-
-def calculate_gamut_coverage_simple(sample, standard, coord_type='xy'):
-    """
-    간단한 색재현율 계산 함수
-
-    Args:
-        sample: 측정된 RGB 좌표 {'red': [x, y], 'green': [x, y], 'blue': [x, y]}
-        standard: 표준 색공간 정보 {'red': [x, y], 'green': [x, y], 'blue': [x, y]}
-        coord_type: 좌표 유형 ('xy' 또는 'uv')
-
-    Returns:
-        coverage: 중첩 비율 (%)
-        area_ratio: 면적 비율 (%)
-    """
-    import numpy as np
-    from scipy.spatial import ConvexHull
-
-    # 삼각형 면적 계산 함수
-    def triangle_area(p1, p2, p3):
-        return 0.5 * abs((p1[0] * (p2[1] - p3[1]) + p2[0] * (p3[1] - p1[1]) + p3[0] * (p1[1] - p2[1])))
-
-    try:
-        # 샘플과 표준 색공간의 좌표 추출
-        sample_coords = np.array(
-            [sample['red'], sample['green'], sample['blue']])
-        standard_coords = np.array([
-            standard['red'][:2] if coord_type == 'xy' else xy_to_uv(
-                standard['red'][0], standard['red'][1]),
-            standard['green'][:2] if coord_type == 'xy' else xy_to_uv(
-                standard['green'][0], standard['green'][1]),
-            standard['blue'][:2] if coord_type == 'xy' else xy_to_uv(
-                standard['blue'][0], standard['blue'][1])
-        ])
-
-        # 샘플과 표준 색공간의 면적 계산
-        sample_area = triangle_area(
-            sample_coords[0], sample_coords[1], sample_coords[2])
-        standard_area = triangle_area(
-            standard_coords[0], standard_coords[1], standard_coords[2])
-
-        # 면적비 계산 (샘플/표준 * 100)
-        area_ratio = (sample_area / standard_area) * 100
-
-        # 중첩 영역 계산을 위해 convex hull 분석
-        # 단순화를 위해 색재현율은 면적비의 90%로 근사값 사용
-        coverage = min(area_ratio * 0.9, 100)  # 최대 100%로 제한
-
-        return coverage, area_ratio
-    except Exception as e:
-        print(f"색재현율 계산 오류: {str(e)}")
-        return 0.0, 0.0
 
 # 스펙트럼 피크 파라미터 계산 함수 추가
 

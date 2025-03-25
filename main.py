@@ -5,7 +5,6 @@ from callbacks import home_callbacks, analysis_callbacks, doe_callbacks, optical
 from dash import dash_table
 from utils import color_math, parsers
 import math
-import dash_html_components as html
 import webbrowser
 import threading
 import os
